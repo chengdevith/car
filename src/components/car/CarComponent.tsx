@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import DeleteCarComponent from "./DeleteCarComponent"; // Adjust path
 
 interface Car {
-  id: string; // Changed to string to match UUID from API
+  id: string;
   make: string;
   model: string;
   year: number;
@@ -14,7 +15,7 @@ interface Car {
   fuel_type: string;
   transmission: string;
   image: string;
-  seller_id?: string; // Optional fields from API
+  seller_id?: string;
   created_at?: string;
   is_sold?: boolean;
 }
@@ -23,6 +24,7 @@ export default function CarComponent() {
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [deletingCarId, setDeletingCarId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Omit<Car, "id" | "seller_id" | "created_at" | "is_sold">>({
     make: "",
@@ -41,40 +43,25 @@ export default function CarComponent() {
     const fetchCars = async () => {
       setLoading(true);
       setError("");
-      const baseUrl = process.env.CAR_BASE_URL || "https://car-nextjs-api.cheatdev.online";
-      const token = document.cookie.split("access_token=")[1]?.split(";")[0] || "";
-      console.log("Fetching cars from:", `${baseUrl}/cars`);
-      console.log("Token present:", !!token ? "Yes" : "No");
 
       try {
-        const res = await fetch(`${baseUrl}/cars`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+        const res = await fetch("/api/cars", {
+          method: "GET",
+          credentials: "include", // ✅ ensures cookies are sent
         });
 
-        console.log("Response status:", res.status);
         const text = await res.text();
-        console.log("Raw response:", text);
-
         let data;
         try {
           data = JSON.parse(text);
-        } catch (parseError) {
-          console.error("JSON parse error:", parseError);
-          throw new Error("Received non-JSON response: " + text.substring(0, 100));
+        } catch {
+          throw new Error("Invalid JSON response: " + text);
         }
 
-        console.log("Parsed data:", data);
         if (!res.ok) throw new Error(data.message || `Failed with status ${res.status}`);
+        if (!Array.isArray(data)) throw new Error("Expected an array of cars");
 
-        // Handle raw array response
-        if (Array.isArray(data)) {
-          setCars(data);
-        } else {
-          throw new Error("Unexpected data format: Expected an array of cars");
-        }
+        setCars(data);
       } catch (e: any) {
         console.error("Fetch error:", e);
         setError(e.message || "An error occurred while fetching cars");
@@ -82,6 +69,7 @@ export default function CarComponent() {
         setLoading(false);
       }
     };
+
     fetchCars();
   }, []);
 
@@ -98,29 +86,22 @@ export default function CarComponent() {
     setLoading(true);
     setError("");
 
-    const baseUrl = process.env.CAR_BASE_URL || "https://car-nextjs-api.cheatdev.online";
-    const token = document.cookie.split("access_token=")[1]?.split(";")[0] || "";
-
     try {
-      const res = await fetch(`${baseUrl}/cars`, {
+      const res = await fetch("/api/cars", {
         method: "POST",
+        credentials: "include", // ✅ send cookies
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
 
-      console.log("Post response status:", res.status);
       const text = await res.text();
-      console.log("Raw post response:", text);
-
       let data;
       try {
         data = JSON.parse(text);
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError);
-        throw new Error("Received non-JSON response: " + text.substring(0, 100));
+      } catch {
+        throw new Error("Invalid JSON response: " + text);
       }
 
       if (!res.ok) throw new Error(data.message || `Failed with status ${res.status}`);
@@ -145,62 +126,84 @@ export default function CarComponent() {
     }
   };
 
+  const startDeleting = (carId: string) => {
+    setDeletingCarId(carId);
+  };
+
+  const handleDelete = () => {
+    setCars((prev) => prev.filter((car) => car.id !== deletingCarId));
+    setDeletingCarId(null);
+  };
+
+  const handleCancel = () => {
+    setDeletingCarId(null);
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-8">
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
-        <h2 className="text-xl font-bold">Add a New Car</h2>
-        {["make", "model", "color", "fuel_type", "transmission", "image"].map((field) => (
+      {deletingCarId && (
+        <DeleteCarComponent
+          car={cars.find((car) => car.id === deletingCarId)!}
+          onDelete={handleDelete}
+          onCancel={handleCancel}
+        />
+      )}
+      {!deletingCarId && (
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
+          <h2 className="text-xl font-bold">Add a New Car</h2>
+          {["make", "model", "color", "fuel_type", "transmission", "image"].map((field) => (
+            <input
+              key={field}
+              name={field}
+              placeholder={field.replace("_", " ")}
+              value={(formData as any)[field]}
+              onChange={handleChange}
+              required
+              className="w-full border px-3 py-2 rounded"
+            />
+          ))}
           <input
-            key={field}
-            name={field}
-            placeholder={field.replace("_", " ")}
-            value={(formData as any)[field]}
+            type="number"
+            name="year"
+            value={formData.year}
             onChange={handleChange}
-            required
+            placeholder="Year"
             className="w-full border px-3 py-2 rounded"
           />
-        ))}
-        <input
-          type="number"
-          name="year"
-          value={formData.year}
-          onChange={handleChange}
-          placeholder="Year"
-          className="w-full border px-3 py-2 rounded"
-        />
-        <input
-          type="number"
-          name="price"
-          value={formData.price}
-          onChange={handleChange}
-          placeholder="Price"
-          className="w-full border px-3 py-2 rounded"
-        />
-        <input
-          type="number"
-          name="mileage"
-          value={formData.mileage}
-          onChange={handleChange}
-          placeholder="Mileage"
-          className="w-full border px-3 py-2 rounded"
-        />
-        <textarea
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          placeholder="Description"
-          className="w-full border px-3 py-2 rounded"
-          rows={3}
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-        >
-          {loading ? "Adding..." : "Add Car"}
-        </button>
-        {error && <p className="text-red-600 mt-2">{error}</p>}
-      </form>
+          <input
+            type="number"
+            name="price"
+            value={formData.price}
+            onChange={handleChange}
+            placeholder="Price"
+            className="w-full border px-3 py-2 rounded"
+          />
+          <input
+            type="number"
+            name="mileage"
+            value={formData.mileage}
+            onChange={handleChange}
+            placeholder="Mileage"
+            className="w-full border px-3 py-2 rounded"
+          />
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            placeholder="Description"
+            className="w-full border px-3 py-2 rounded"
+            rows={3}
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          >
+            {loading ? "Adding..." : "Add Car"}
+          </button>
+          {error && <p className="text-red-600 mt-2">{error}</p>}
+        </form>
+      )}
 
       <div>
         <h2 className="text-2xl font-bold mb-4">All Cars</h2>
@@ -215,7 +218,7 @@ export default function CarComponent() {
             {cars.map((car) => (
               <div key={car.id} className="border rounded shadow p-4 bg-white">
                 <img
-                  src={car.image || "https://via.placeholder.com/150"} // Fallback for empty image
+                  src={car.image || "https://via.placeholder.com/150"}
                   alt={`${car.make} ${car.model}`}
                   className="w-full h-40 object-cover rounded mb-2"
                 />
@@ -230,6 +233,12 @@ export default function CarComponent() {
                   <li>Fuel: {car.fuel_type}</li>
                   <li>Transmission: {car.transmission}</li>
                 </ul>
+                <button
+                  onClick={() => startDeleting(car.id)}
+                  className="mt-2 w-full bg-red-600 text-white py-1 rounded hover:bg-red-700"
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
