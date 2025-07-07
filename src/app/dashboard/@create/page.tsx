@@ -1,7 +1,7 @@
-
+import CarComponent from "@/components/car/CarComponent"
 
 export default function Create(){
     return (
-        <h1>Create</h1>
+        <CarComponent/>
     )
 }

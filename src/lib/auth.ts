@@ -14,6 +14,12 @@ interface LoginResponse {
     refreshToken?: string;
 }
 
+interface SignupData {
+  username: string;
+  email: string;
+  password: string;
+  confirmed_password: string;
+}
 // handle login Data 
 export const loginUser = async (loginData: LoginData): Promise<LoginResponse> => {
     try {
@@ -153,5 +159,28 @@ export const logout = (): void => {
 export const isAuthenticated = (): boolean => {
     const token = getAuthToken();
     return !!token;
+};
+
+export const registerUser = async (signupData: SignupData): Promise<any> => {
+  try {
+    const response = await fetch("/api/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(signupData),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Signup failed");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Signup error:", error);
+    throw error;
+  }
 };
 
